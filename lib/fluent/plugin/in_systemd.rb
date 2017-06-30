@@ -2,10 +2,13 @@
 require "systemd/journal"
 require "fluent/plugin/input"
 require "fluent/plugin/systemd/pos_writer"
+require "fluent/plugin/systemd/entry_helpers"
 
 module Fluent
   module Plugin
     class SystemdInput < Input
+      include SystemdMutableEntry
+
       Fluent::Plugin.register_input("systemd", self)
 
       helpers :timer, :storage
@@ -16,7 +19,8 @@ module Fluent
       config_param :filters, :array, default: []
       config_param :pos_file, :string, default: nil, deprecated: "Use <storage> section with `persistent: true' instead"
       config_param :read_from_head, :bool, default: false
-      config_param :strip_underscores, :bool, default: false
+      config_param :strip_underscores, :bool, default: false, deprecated: "Use <entry> section or `systemd_entry` " \
+                                                                          "filter plugin instead"
       config_param :tag, :string
 
       config_section :storage do
@@ -98,8 +102,10 @@ module Fluent
         end
       end
 
+      # Once the legacy @strip_underscores has been removed, this function
+      # can be removed and the `mutate` call implemented in the `run` method
       def formatted(entry)
-        return entry.to_h unless @strip_underscores
+        return mutate_entry(entry) unless @strip_underscores
         Hash[entry.to_h.map { |k, v| [k.gsub(/\A_+/, ""), v] }]
       end
 
